@@ -5,7 +5,7 @@ const $ = s => document.querySelector(s);
 const urlEl = $('#url'), field = $('#field'), gen = $('#gen'), statusEl = $('#status');
 const loadingScreen = $('#loadingScreen'), loadingMessage = $('#loadingMessage');
 const loadingProgress = $('#loadingProgress'), loadingProvider = $('#loadingProvider');
-const state = { style: null, busy: false, last: '', shortener: 'isgd' };
+const state = { style: null, busy: false, last: '', shortener: 'abreai' };
 
 // 👇 Edite aqui o texto exibido (parte [texto] do markdown) para cada estilo.
 const LINK_TEXT = {
@@ -21,50 +21,47 @@ const save = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } cat
 
 /* ---------- Helpers ---------- */
 const enc = encodeURIComponent;
-function guessShortUrl(obj) {
-  if (typeof obj === 'string') return obj;
-  for (const k of ['shorturl', 'short_url', 'result_url', 'url', 'link', 'short']) if (obj?.[k]) return obj[k];
-  if (obj?.data?.url) return obj.data.url;
-  if (obj?.result?.full_short_link) return obj.result.full_short_link;
-  return null;
+
+/* ---------- Encurtador: Abre.ai ---------- */
+class ServiceError extends Error {}
+const TIMEOUT = 9000;
+const isShort = s => typeof s === 'string' && /^https?:\/\/[^\s<>"']+$/i.test(s.trim());
+const fixProto = s => { s = String(s || '').trim(); return s && !/^https?:\/\//i.test(s) ? 'https://' + s : s; };
+
+async function timedFetch(url, opts = {}) {
+  const ctl = new AbortController(), t = setTimeout(() => ctl.abort(), TIMEOUT);
+  try {
+    const r = await fetch(url, { ...opts, signal: ctl.signal, cache: 'no-store', referrerPolicy: 'no-referrer' });
+    return await r.text();
+  } finally { clearTimeout(t); }
 }
 
-/* ---------- 10 encurtadores famosos + fallback em cadeia ---------- */
-const isgdLike = host => async u => {
-  const d = await (await fetch(`https://${host}/create.php?format=json&url=${enc(u)}`)).json();
-  if (!d.shorturl) throw new Error(d.errormessage || 'falha'); return d.shorturl;
-};
+// Tenta as rotas em ordem (direta -> proxy CORS) até uma devolver URL curta válida
+async function runRoutes(routes) {
+  let last;
+  for (const route of routes) {
+    try { const s = await route(); if (isShort(s)) return s.trim(); }
+    catch (e) { if (e instanceof ServiceError) throw e; last = e; }
+  }
+  throw last || new Error('falha');
+}
+
 const SHORTENERS = {
-  isgd:    { name: 'is.gd',     run: isgdLike('is.gd') },
-  vgd:     { name: 'v.gd',      run: isgdLike('v.gd') },
-  dagd:    { name: 'da.gd',     run: async u => {
-    const t = (await (await fetch(`https://da.gd/shorten?url=${enc(u)}`)).text()).trim();
-    if (!/^https?:\/\//.test(t)) throw new Error('falha'); return t; } },
-  tinyurl: { name: 'TinyURL',   run: async u => {
-    const t = (await (await fetch(`https://tinyurl.com/api-create.php?url=${enc(u)}`)).text()).trim();
-    if (!/^https?:\/\//.test(t)) throw new Error('falha'); return t; } },
-  cleanuri:{ name: 'CleanURI',  run: async u => {
-    const r = await fetch('https://cleanuri.com/api/v1/shorten', { method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: 'url=' + enc(u) });
-    const d = await r.json(); if (!d.result_url) throw new Error(d.error || 'falha'); return d.result_url; } },
-  shrtco:  { name: 'Shrtco.de', run: async u => {
-    const d = await (await fetch(`https://api.shrtco.de/v2/shorten?url=${enc(u)}`)).json();
-    if (!d.ok) throw new Error('falha'); return d.result.full_short_link; } },
-  clckru:  { name: 'Clck.ru',   run: async u => {
-    const t = (await (await fetch(`https://clck.ru/--?url=${enc(u)}`)).text()).trim();
-    if (!/^https?:\/\//.test(t)) throw new Error('falha'); return t; } },
-  ulvis:   { name: 'Ulvis.net', run: async u => {
-    const d = await (await fetch(`https://ulvis.net/api.php?url=${enc(u)}&type=json`)).json();
-    const s = guessShortUrl(d) || guessShortUrl(d?.data); if (!s) throw new Error('falha'); return s; } },
-  spoo:    { name: 'Spoo.me',   run: async u => {
-    const r = await fetch('https://spoo.me/shorten', { method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: 'url=' + enc(u) });
-    const d = await r.json(); const s = guessShortUrl(d); if (!s) throw new Error('falha'); return s; } },
-  chilpit: { name: 'Chilp.it',  run: async u => {
-    const t = (await (await fetch(`https://chilp.it/api.php?url=${enc(u)}`)).text()).trim();
-    if (!/^https?:\/\//.test(t)) throw new Error('falha'); return t; } },
+  abreai: { name: 'Abre.ai', run: async u => {
+    const api = 'https://abre.ai/_/generate';
+    const opts = { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url_translation: { url: u } }) };
+    const parse = t => {
+      let d; try { d = JSON.parse(t); } catch { throw new Error('resposta inválida'); }
+      const s = d?.data?.attributes?.shortenedUrl || d?.data?.attributes?.shortened_url;
+      if (!s) throw new Error('resposta inválida');
+      return fixProto(s);
+    };
+    return runRoutes([
+      async () => parse(await timedFetch(api, opts)),
+      async () => parse(await timedFetch(`https://corsproxy.io/?url=${enc(api)}`, opts)),
+    ]); } },
 };
-const ORDER = Object.keys(SHORTENERS);
 
 /* ---------- URL validation ---------- */
 const normalize = v => { v = v.trim(); return v && !/^[a-z][a-z0-9+.-]*:\/\//i.test(v) ? 'https://' + v : v; };
@@ -123,34 +120,49 @@ function setLoading(show, message = '') {
   if (message) loadingMessage.textContent = message;
   if (!show) loadingProgress.style.width = '0%';
 }
+const loadingTitle = $('#loadingTitle'), loadingClose = $('#loadingClose'), loadingNoteLbl = $('#loadingNoteLbl');
+function showError(name) {
+  loadingScreen.classList.add('error');
+  loadingTitle.innerHTML = 'ERRO AO<br><span>GERAR</span>';
+  loadingMessage.textContent = `Não foi possível gerar o link com ${name}. Verifique a URL ou tente novamente.`;
+  loadingNoteLbl.textContent = 'FALHA EM';
+  loadingProvider.textContent = name.toUpperCase();
+  loadingProgress.style.width = '100%';
+  loadingClose.hidden = false;
+}
+function closeLoading() {
+  loadingScreen.classList.remove('error');
+  loadingTitle.innerHTML = 'GERANDO SEU<br><span>HYPERLINK</span>';
+  loadingNoteLbl.textContent = 'PROCESSANDO';
+  loadingClose.hidden = true;
+  setLoading(false);
+}
+loadingClose.addEventListener('click', closeLoading);
+
 async function generate() {
   if (gen.disabled) return;
   state.busy = true; gen.classList.add('busy'); gen.disabled = true;
   $('#genTxt').textContent = 'Gerando hyperlink...';
-  setLoading(true, 'Preparando conexão segura...');
+  closeLoading();
+  setLoading(true, 'Conectando ao encurtador...');
   const target = normalize(urlEl.value);
-  const chosen = state.shortener;
-  let short = null, usedName = '';
-
-  const queue = [chosen, ...ORDER.filter(k => k !== chosen)];
-  for (let i = 0; i < queue.length; i++) {
-    const s = SHORTENERS[queue[i]];
-    setStatus(i ? 'Tentando alternativa... ' + s.name : 'Encurtando... ' + s.name);
-    loadingProvider.textContent = s.name.toUpperCase();
-    loadingMessage.textContent = i ? 'Testando um serviço alternativo...' : 'Conectando ao encurtador...';
-    loadingProgress.style.width = `${Math.max(8, ((i + 1) / queue.length) * 100)}%`;
-    try { short = await s.run(target); usedName = s.name; setStatus('Sucesso via ' + s.name); break; } catch { /* próximo */ }
-  }
-  if (!short) setStatus('Todos os encurtadores falharam. Verifique a URL ou sua conexão.');
+  const s = SHORTENERS[state.shortener];   // somente o encurtador selecionado, sem fallback
+  loadingProvider.textContent = s.name.toUpperCase();
+  loadingProgress.style.width = '50%';
+  setStatus('Encurtando... ' + s.name);
+  let short = null;
+  try { short = await s.run(target); } catch { /* erro tratado abaixo */ }
 
   state.busy = false; gen.classList.remove('busy');
   $('#genTxt').textContent = 'Gerar hyperlink';
-  setLoading(false);
-  if (!short) { refresh(); return; }
+  if (!short) { setStatus('Falha ao gerar com ' + s.name + '.'); showError(s.name); refresh(); return; }
+  closeLoading();
+  setStatus('Sucesso via ' + s.name);
+  const usedName = s.name;
 
   const label = LINK_TEXT[state.style] || 'Abra aqui';
-  state.last = `[${label}](${short})`;              // formato Markdown: [texto do estilo](URL encurtada)
-  $('#result').textContent = state.last;            // texto puro: nada clicável
+  state.last = `[${label}](${short})`;
+  $('#result').textContent = state.last;
   $('#termEngine').textContent = usedName;
   $('#pvText').textContent = label;
   $('#pvTo').textContent = '→ ' + short;
@@ -192,7 +204,7 @@ $('#copy').addEventListener('click', async e => {
 /* ---------- Init ---------- */
 (function init() {
   const p = load(LS.pref, {});
-  selectShortener(p.shortener && SHORTENERS[p.shortener] ? p.shortener : 'isgd', false);
+  selectShortener(p.shortener && SHORTENERS[p.shortener] ? p.shortener : 'abreai', false);
   if (p.style) document.querySelector(`.style[data-style="${p.style}"]`)?.click();
   refresh();
 })();

@@ -50,7 +50,7 @@
         <span class="orbit-ring ring-two"></span>
       </div>
     </div>
-    <div class="hero-baseline"><span>PURE BLACK INTERFACE</span><span>10 LINK ENGINES <i></i></span></div>
+    <div class="hero-baseline"><span>PURE BLACK INTERFACE</span><span>1 LINK ENGINE <i></i></span></div>
   </section>
 
   <section class="card">
@@ -83,20 +83,11 @@
     <label id="shortenerLbl">Encurtador</label>
     <div class="dropdown" id="shortenerDropdown">
       <button type="button" class="dropdown-btn" id="shortenerBtn" aria-haspopup="listbox" aria-expanded="false" aria-labelledby="shortenerLbl">
-        <span id="shortenerLabel">is.gd</span>
+        <span id="shortenerLabel">Abre.ai</span>
         <svg class="ic chevron"><use href="#ic-chevron"/></svg>
       </button>
       <ul class="dropdown-menu hidden" id="shortenerMenu" role="listbox" tabindex="-1">
-        <li role="option" data-value="isgd" aria-selected="true">is.gd<svg class="ic ic-sm"><use href="#ic-check"/></svg></li>
-        <li role="option" data-value="vgd">v.gd<svg class="ic ic-sm"><use href="#ic-check"/></svg></li>
-        <li role="option" data-value="dagd">da.gd<svg class="ic ic-sm"><use href="#ic-check"/></svg></li>
-        <li role="option" data-value="tinyurl">TinyURL<svg class="ic ic-sm"><use href="#ic-check"/></svg></li>
-        <li role="option" data-value="cleanuri">CleanURI<svg class="ic ic-sm"><use href="#ic-check"/></svg></li>
-        <li role="option" data-value="shrtco">Shrtco.de<svg class="ic ic-sm"><use href="#ic-check"/></svg></li>
-        <li role="option" data-value="clckru">Clck.ru<svg class="ic ic-sm"><use href="#ic-check"/></svg></li>
-        <li role="option" data-value="ulvis">Ulvis.net<svg class="ic ic-sm"><use href="#ic-check"/></svg></li>
-        <li role="option" data-value="spoo">Spoo.me<svg class="ic ic-sm"><use href="#ic-check"/></svg></li>
-        <li role="option" data-value="chilpit">Chilp.it<svg class="ic ic-sm"><use href="#ic-check"/></svg></li>
+        <li role="option" data-value="abreai" aria-selected="true">Abre.ai<svg class="ic ic-sm"><use href="#ic-check"/></svg></li>
       </ul>
     </div>
 
@@ -137,10 +128,11 @@
   <div class="loading-card">
     <div class="loader-mark"><span></span><span></span><span></span></div>
     <p class="loading-kicker">ETNX LINK ENGINE</p>
-    <h2>GERANDO SEU<br><span>HYPERLINK</span></h2>
+    <h2 id="loadingTitle">GERANDO SEU<br><span>HYPERLINK</span></h2>
     <p class="loading-message" id="loadingMessage">Preparando conexão segura...</p>
     <div class="loading-track"><span id="loadingProgress"></span></div>
-    <p class="loading-note"><i></i> PROCESSANDO <span id="loadingProvider">IS.GD</span></p>
+    <p class="loading-note"><i></i> <b id="loadingNoteLbl">PROCESSANDO</b> <span id="loadingProvider">ABRE.AI</span></p>
+    <button type="button" id="loadingClose" class="ghost" hidden>Fechar</button>
   </div>
 </div>
 <script src="script.js"></script>

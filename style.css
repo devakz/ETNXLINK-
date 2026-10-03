@@ -422,3 +422,11 @@ pre{color:#f3f3f3}
   *,*::before,*::after{scroll-behavior:auto!important}
   .hero::after,.orbit-ring,.orbit-core,.system-state i,.hero-topline i,.panel-state i{animation:none!important}
 }
+
+/* Estado de erro do loading */
+.loading-screen.error .loader-mark span{animation:none;background:#ff5c5c}
+.loading-screen.error .loading-track span{background:#ff5c5c;box-shadow:0 0 14px rgba(255,92,92,.5);width:100%!important}
+.loading-screen.error .loading-card h2 span{color:#ff5c5c}
+.loading-screen.error .loading-note i{background:#ff5c5c;box-shadow:0 0 9px #ff5c5c;animation:none}
+.loading-note b{font-weight:500}
+#loadingClose{margin-top:18px;width:100%}
